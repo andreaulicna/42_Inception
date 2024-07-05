@@ -50,4 +50,37 @@
 - to open ports: `ufw allow [PORT]`
 - check status: `ufw status`
 
+### Docker
+- show groups a user is in: `groups [USER]`
+- add user to a group: `sudo usermod -aG [GROUP] [USER]`
+
+### Certificates
+- using utility `mkcert`
+- changing local domain: adding `aulicna.42.fr` into `/etc/hosts` as a name for `127.0.0.1`
+- generate certificate: ` mkcert aulicna.42.fr`
+- change the file extension so that nginx can work with them:
+  - `-key.pem` to `.key`
+  - `.pem` to `.crt`
+<br>
+- **NGINX config**:
+  
+  - `listen 80; listen 443 ssl;`: Listen for connections on ports 80 (HTTP) and 443 (HTTPS). In practice, the server will be accessible via both HTTP and HTTPS.
+  
+  - `server_name aulicna.42.fr www.aulicna.42.fr;`: Sets the server name to `aulicna.42.fr` and `www.aulicna.42.fr`. Nginx will respond to requests that are made to these domain names.
+  
+  - `root /var/www/public/html;`: Sets the root directory for requests to `/var/www/public/html`. This is the directory where Nginx will look for files to serve when it receives a request.
+  
+  - `ssl_certificate /etc/nginx/ssl/aulicna.42.fr.crt;`: Sets the path to the SSL certificate. This certificate is used to establish a secure connection with the client.
+  
+  - `ssl_certificate_key /etc/nginx/ssl/aulicna.42.fr.key;`: Sets the path to the SSL certificate key. This key is used in conjunction with the certificate to establish a secure connection.
+  
+  - `ssl_protocols TLSv1.2 TLSv1.3;`: Specifies the TLS protocols that Nginx should use for SSL. These protocols are used to secure the connection between the client and the server.
+  
+  - `ssl_session_timeout 10m;`: Sets the SSL session timeout to 10 minutes. This means that the secure connection will be kept alive for 10 minutes without activity before it's closed.
+  
+  - `keepalive_timeout 70;`: Sets the keep-alive timeout to 70 seconds. This means that the connection will be kept open for 70 seconds without activity before it's closed. This can help improve performance for clients that make multiple requests.
+  
+  - `location / { ... }`: Defines how to respond to requests for the root URL (`/`). The `try_files $uri /index.html;` line tells Nginx to try to serve the requested URI, and if that fails, to serve `/index.html`. This is useful for single-page applications where you want to serve the same HTML file for all routes.
+  
+  - `if ($scheme = 'http') {...}`: Redirects HTTP traffic to HTTPS. This is a common practice to ensure that all traffic is encrypted.
 
