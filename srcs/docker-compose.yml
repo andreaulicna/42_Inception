@@ -1,0 +1,17 @@
+version: '3' # last version
+
+services:
+  nginx:
+    build:
+      context: .
+      dockerfile: requirements/nginx/Dockerfile
+    container_name: nginx
+#    depends_on: # specify dependencies
+#      - wordpress # nginx needs to start after wordpress
+    ports:
+      - "443:443"
+    volumes: # container needs to see the config and keys
+      - ./requirements/nginx/conf/:/etc/nginx/http.d/
+      - ./requirements/nginx/tools:/etc/nginx/ssl/
+      - /home/${USER}/simple_docker_nginx_html/public/html:/var/www/
+    restart: always # restar type
