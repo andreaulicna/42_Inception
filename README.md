@@ -93,13 +93,128 @@
 - Php-Fpm: A set of libraries for the FastCGI API, port: 9000
 - Wordpress: Content Management System
 - MariaDB: Relational database, port: 3306
+<br>
+**Comands**:
+- start: `docker-compose up -d` (The `-d` flag stands for "detached" mode - it starts the containers in the background. This means that the Docker containers start up and run without attaching to the current terminal session, allowing one to continue using the terminal for other commands while the containers are running. Without the `-d` flag, the container logs would be output to the terminal, and stopping the containers would require opening a new terminal session or stopping the containers with CTRL+C in the current session.)
+- stop: `docker-compose down`
+
 
 #### Docker container: NGINX
 
 **Dockerfile**
 ```
-FROM alpine:3.20											# specify image to deploy the container from
+FROM alpine:3.20											# specify the base image - alpine is small size and secure
 RUN apk update && apk upgrade && apk add --no-cache nginx	# creates a new image layer resulting from the called command (similar to a VM snapshot)
-EXPOSE 443													# open port for the container to exchange traffic
+EXPOSE 443													# open port for the container to exchange web traffic
 CMD ["nginx", "-g", "daemon off;"]							# run the installed configuration
 ```
+
+#### Docker container: MariaDB
+
+**Dockerfile**
+```
+FROM alpine:3.20											# specify the base image - alpine is small size and secure
+
+ARG DB_NAME \												# pass env variables saved in .env file
+	DB_USER \
+	DB_PASS
+
+RUN apk update && apk add --no-cache mariadb mariadb-client # create a new image layer resulting from the called command (similar to a VM snapshot)
+RUN mkdir /var/run/mysqld; \								# create directory for MariaDB's runtime data
+    chmod 777 /var/run/mysqld; \							# change permission so that the directory is writable
+    { echo '[mysqld]'; \									
+      echo 'skip-host-cache'; \								# disable host cache
+      echo 'skip-name-resolve'; \							# disable name resolution
+      echo 'bind-address=0.0.0.0'; \						# listen on all network interfaces
+    } | tee  /etc/my.cnf.d/docker.cnf; \					# create new config file with the above settings
+    sed -i "s|skip-networking|skip-networking=0|g" \		# modify the config file to enable networking by adding "=0" to skip-networking
+      /etc/my.cnf.d/mariadb-server.cnf
+RUN mysql_install_db --user=mysql --datadir=/var/lib/mysql	# as user "mysql" initialize MariaDB database system tables in /var/lib/mysql using mysql_install_db
+EXPOSE 3306													# open the default port for MariaDB/MySQL
+
+COPY requirements/mariadb/conf/create_db.sh .				# copy a database initialization script from the host's tool directory to the curring one inside the image
+RUN sh create_db.sh && rm create_db.sh						# run the database initialization script
+USER mysql													# set running user for running subsequent commands and the container itself - security best practise not to run as root
+CMD ["/usr/bin/mysqld", "--skip-log-error"]					# specify the default command to run once the container starts (if the container is runing with args, those replace this array)
+```
+<br>
+
+**Dockerfile - further explanation**:
+- **Why disable host cache and name resolution?**
+  - Host Cache Disabling (`skip-host-cache`): The host cache in MariaDB/MySQL caches information about client connections. While this can speed up connection times for repeated connections from the same host, it can also introduce overhead and complexity, especially in environments where clients frequently connect and disconnect, or where connections come from a large number of distinct hosts. Disabling the host cache can reduce this overhead.
+  - Name Resolution Disabling (`skip-name-resolve`): By default, MariaDB/MySQL performs reverse DNS lookups on client IP addresses to get hostnames, which are then used for permissions checks and possibly other operations. This can significantly slow down the connection process, especially if the DNS system is slow or misconfigured. Disabling name resolution forces MariaDB/MySQL to use IP addresses for client identification and permission checks, which can speed up connection times.
+- **Why listen on all network interfaces?**
+  - Container accessibility
+  - Development and production flexibility 
+- **Why enable networking?**
+  - Container Communication: Essential for inter-container TCP/IP communication, allowing connections to MariaDB on port 3306.
+  - Accessibility: Enables MariaDB server access from both within the Docker network and from external systems, crucial for management and backups.
+  - Flexibility and Scalability: Allows for the MariaDB service to be scaled and relocated without configuration changes, supporting cloud-native principles.
+  - Remote Management Compatibility: Ensures MariaDB can be managed using external tools, which require network connectivity to function.
+- **Why to copy the initialization script?**
+  - Automation: Automates the setup process of the MariaDB database when the container is started, ensuring that the database is ready to use without manual intervention.
+  - Consistency: Ensures that every instance of the container starts with the same database configuration and data, which is crucial for consistency across different environments (development, testing, production).
+  - Security: Allows for the configuration of security settings and user permissions in a controlled manner, reducing the risk of misconfiguration.
+  - Customization: Provides a way to apply specific settings or tweaks required by the application that uses the database, which might not be possible through standard MariaDB configuration files alone.
+<br>
+
+**Script to create database**
+```
+#!bin/sh
+# Check if the MySQL "mysql" system database directory does not exist
+if [ ! -d "/var/lib/mysql/mysql" ]; then
+
+		# Change ownership of the MySQL data directory to the mysql user and group
+		chown -R mysql:mysql /var/lib/mysql
+
+		# Initialize the MySQL data directory and create system tables
+		mysql_install_db --basedir=/usr --datadir=/var/lib/mysql --user=mysql --rpm
+
+		# Create a temporary file and store its name in tfile
+		tfile=`mktemp`
+		# If the temporary file was not created successfully, exit with an error
+		if [ ! -f "$tfile" ]; then
+				return 1
+		fi
+fi
+
+# Check if the "wordpress" database does not exist
+if [ ! -d "/var/lib/mysql/wordpress" ]; then
+
+		# Create a new SQL script file with commands to configure the MySQL server
+		cat << EOF > /tmp/create_db.sql
+USE mysql; # Switch to the mysql system database
+FLUSH PRIVILEGES; # Reload the grant tables in memory
+DELETE FROM     mysql.user WHERE User=''; # Remove anonymous users
+DROP DATABASE test; # Drop the default test database
+DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%'; # Remove privileges on test database
+DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1'); # Remove remote root access
+ALTER USER 'root'@'localhost' IDENTIFIED BY '${DB_ROOT}'; # Set the root password
+CREATE DATABASE ${DB_NAME} CHARACTER SET utf8 COLLATE utf8_general_ci; # Create the wordpress database with UTF-8 encoding
+CREATE USER '${DB_USER}'@'%' IDENTIFIED by '${DB_PASS}'; # Create a new user for wordpress
+GRANT ALL PRIVILEGES ON wordpress.* TO '${DB_USER}'@'%'; # Grant all privileges on the wordpress database to the new user
+FLUSH PRIVILEGES; # Reload the grant tables in memory
+EOF
+		# Execute the SQL script using mysqld with bootstrap option for initial setup
+		/usr/bin/mysqld --user=mysql --bootstrap < /tmp/create_db.sql
+		# Remove the temporary SQL script file
+		rm -f /tmp/create_db.sql
+fi
+```
+
+The script performs several steps to ensure the MySQL (MariaDB) database is properly initialized and configured for a WordPress application:
+
+1. **Check for the MySQL system database directory**: This step ensures that the database initialization process only runs if the MySQL system database hasn't already been initialized. It prevents re-initialization and potential data loss or corruption.
+
+2. **Change ownership of the MySQL data directory**: This ensures that the directory has the correct permissions for the MySQL service to operate, addressing potential security and access issues.
+
+3. **Initialize the MySQL data directory**: This creates the necessary system tables and other initial setup requirements for MySQL to function. It's a crucial step for a new database environment.
+
+4. **Create a temporary file**: This is likely used as a flag or for temporary storage during the initialization process. The script checks for its successful creation to ensure the environment is writable and functioning as expected.
+
+5. **Create a new SQL script file with configuration commands**: This step involves setting up the MySQL server with specific configurations for the WordPress application, including security settings (like removing anonymous users and test databases) and creating the WordPress database with appropriate character encoding.
+
+6. **Execute the SQL script**: This applies the configurations and setups defined in the SQL script. It's done using the `mysqld --bootstrap` option, which is intended for initial setup and configuration tasks.
+
+7. **Remove the temporary SQL script file**: Cleans up the temporary file to maintain a clean environment and ensure that sensitive information (like passwords) isn't left accessible on the filesystem.
+
