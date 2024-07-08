@@ -23,10 +23,10 @@
 - needs to be done on the guest machine (VM via `ufw allow`) and also redirecting traffic from host to the guest (in VM Settings > Network > Advanced > Port forwarding)
 
 #### Ports overview:
-- **Port 42**: SSH
-- **Port 80**: This is the default port for HTTP (Hypertext Transfer Protocol). When you visit a website using http://, your web browser communicates with the web server over this port unless specified otherwise.
+- **Port 4241:42**: SSH
+- **Port 80:80**: This is the default port for HTTP (Hypertext Transfer Protocol). When you visit a website using http://, your web browser communicates with the web server over this port unless specified otherwise.
 
-- **Port 443**: This is the default port for HTTPS (HTTP Secure), which is HTTP over SSL/TLS. When you visit a website using https://, your web browser communicates with the web server over this port. HTTPS encrypts the data for secure transmission, preventing data from being read in transit.
+- **Port 443:443**: This is the default port for HTTPS (HTTP Secure), which is HTTP over SSL/TLS. When you visit a website using https://, your web browser communicates with the web server over this port. HTTPS encrypts the data for secure transmission, preventing data from being read in transit.
 
 
 #### SSH
@@ -57,10 +57,13 @@
 ### Certificates
 - using utility `mkcert`
 - changing local domain: adding `aulicna.42.fr` into `/etc/hosts` as a name for `127.0.0.1`
-- generate certificate: ` mkcert aulicna.42.fr`
+- generate certificates: run `mkcert aulicna.42.fr`in `srcs/requirements/tools/`
 - change the file extension so that nginx can work with them:
   - `-key.pem` to `.key`
   - `.pem` to `.crt`
+- edit `docker-compose.yml`:
+  - add a new `volume`that maps the location of the generated certificate and key to where NGINX looks for it: `- /home/${USER}/42_Inception/srcs/requirements/tools:/etc/nginx/ssl`
+  - have both `80:80` and `443:443` ports open
 <br>
 - **NGINX config**:
   
@@ -84,3 +87,19 @@
   
   - `if ($scheme = 'http') {...}`: Redirects HTTP traffic to HTTPS. This is a common practice to ensure that all traffic is encrypted.
 
+### Docker containers
+- NGINX: Proxy web server, port: 443
+- PHP: Scripting language for the web
+- Php-Fpm: A set of libraries for the FastCGI API, port: 9000
+- Wordpress: Content Management System
+- MariaDB: Relational database, port: 3306
+
+#### Docker container: NGINX
+
+**Dockerfile**
+```
+FROM alpine:3.20											# specify image to deploy the container from
+RUN apk update && apk upgrade && apk add --no-cache nginx	# creates a new image layer resulting from the called command (similar to a VM snapshot)
+EXPOSE 443													# open port for the container to exchange traffic
+CMD ["nginx", "-g", "daemon off;"]							# run the installed configuration
+```
