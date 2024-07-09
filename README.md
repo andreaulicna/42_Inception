@@ -133,7 +133,7 @@ RUN mysql_install_db --user=mysql --datadir=/var/lib/mysql	# as user "mysql" ini
 EXPOSE 3306													# open the default port for MariaDB/MySQL
 
 COPY requirements/mariadb/conf/create_db.sh .				# copy a database initialization script from the host's tool directory to the curring one inside the image
-RUN sh create_db.sh && rm create_db.sh						# run the database initialization script
+RUN sh create_db.sh && rm create_db.sh						# run the database initialization script and remove it afterwards
 USER mysql													# set running user for running subsequent commands and the container itself - security best practise not to run as root
 CMD ["/usr/bin/mysqld", "--skip-log-error"]					# specify the default command to run once the container starts (if the container is runing with args, those replace this array)
 ```
@@ -218,3 +218,45 @@ The script performs several steps to ensure the MySQL (MariaDB) database is prop
 
 7. **Remove the temporary SQL script file**: Cleans up the temporary file to maintain a clean environment and ensure that sensitive information (like passwords) isn't left accessible on the filesystem.
 
+#### Docker container: Wordpress
+**Dockerfile**
+
+```
+FROM alpine:3.20
+ARG PHP_VERSION=8 \
+    DB_NAME \
+    DB_USER \
+    DB_PASS
+RUN apk update && apk upgrade && apk add --no-cache \		# the usual + list of components:
+    php${PHP_VERSION} \										# php which wordpress runs on
+    php${PHP_VERSION}-fpm \									# php-fpm manages interaction with nginx
+    php${PHP_VERSION}-mysqli \								# php-mysqli manages interaction with mariadb
+	php${PHP_VERSION}-json \
+    php${PHP_VERSION}-curl \
+    php${PHP_VERSION}-dom \
+    php${PHP_VERSION}-exif \
+    php${PHP_VERSION}-fileinfo \
+    php${PHP_VERSION}-mbstring \
+    php${PHP_VERSION}-openssl \
+    php${PHP_VERSION}-xml \
+    php${PHP_VERSION}-zip \
+    php${PHP_VERSION}-redis \								# needed for bonus
+    wget \													# needed to download wordpress itself
+    unzip \													# unzip the archive with downloaded wordpress
+	sed -i "s|listen = 127.0.0.1:9000|listen = 9000|g" \	# set www.conf, so that the fastCGI listens to all connections on port 9000
+    /etc/php8/php-fpm.d/www.conf \
+    sed -i "s|;listen.owner = nobody|listen.owner = nobody|g" \
+    /etc/php8/php-fpm.d/www.conf \
+    sed -i "s|;listen.group = nobody|listen.group = nobody|g" \
+    /etc/php8/php-fpm.d/www.conf \
+    && rm -f /var/cache/apk/*								# clear cache of installed modules
+WORKDIR /var/www											# assign working directory
+RUN wget https://wordpress.org/latest.zip && \				# download latest version of wordpress
+    unzip latest.zip && \
+    cp -rf wordpress/* . && \
+    rm -rf wordpress latest.zip								# delete source files after unzipping
+COPY ./requirements/wordpress/conf/wp-config-create.sh .	# copy and execute configuration file
+RUN sh wp-config-create.sh && rm wp-config-create.sh && \	# run wordpress initialization script and delete it afterwards
+    chmod -R 0777 wp-content/								# give all users rights to the wp-content folder - management of themes, plugins, and other files
+CMD ["/usr/sbin/php-fpm8", "-F"]							# launch installed php-fpm
+```
