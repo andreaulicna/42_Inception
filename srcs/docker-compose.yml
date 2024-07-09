@@ -6,15 +6,17 @@ services:
       context: .
       dockerfile: requirements/nginx/Dockerfile
     container_name: nginx
-#    depends_on: # specify dependencies
-#      - wordpress # nginx needs to start after wordpress
+    depends_on: # specify dependencies
+      - wordpress # nginx needs to start after wordpress
     ports:
       - "443:443"
     volumes: # container needs to see the config and keys
       - ./requirements/nginx/conf/:/etc/nginx/http.d/
       - ./requirements/nginx/tools:/etc/nginx/ssl/
-      - /home/${USER}/simple_docker_nginx_html/public/html:/var/www/
+      - wp-volume:/var/www/
     restart: always # restar type
+    networks:
+      - inception
   
   mariadb:
     build:
@@ -28,10 +30,46 @@ services:
     container_name: mariadb
     ports:
       - "3306:3306"
-    #networks:
-    # - twinception
-    #volutwmes:
-    # - twdb-volume:/var/lib/mysql
-    env_file:
-      - .env
+    volumes:
+     - db-volume:/var/lib/mysql
     restart: always # restar type
+    networks:
+      - inception
+
+  wordpress:
+    build:
+      context: .
+      dockerfile: requirements/wordpress/Dockerfile
+      args:
+        DB_NAME: ${DB_NAME}
+        DB_USER: ${DB_USER}
+        DB_PASS: ${DB_PASS}
+    container_name: wordpress
+    depends_on:
+      - mariadb
+    volumes:
+      - wp-volume:/var/www/
+    restart: always # restar type
+    networks:
+      - inception
+
+
+# This is a common section for NGINX and Wordpress to define how the data exchange between them will look like.
+# It also manages the storing of the database - it will be stored in home/aulicna/data.
+volumes:
+  wp-volume:
+    driver_opts:
+      o: bind
+      type: none
+      device: /home/${USER}/data/wordpress
+  db-volume:
+    driver_opts:
+      o: bind
+      type: none
+      device: /home/${USER}/data/mariadb
+
+# This section unites all the containers into a single (named) network.
+# By default, all the containers defined within one docker-compose file are united in one network, but we cannot set the name of such a network. Accessing the network by a name will be useful later on.
+networks:
+  inception:
+    driver: bridge
