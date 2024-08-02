@@ -24,7 +24,7 @@ clean: stop
 	@sudo rm -rf ~/data/wordpress/*
 
 fclean:
-	@echo "Cleaning everythingi that's got anything to do with ${name}!\n"
+	@echo "Cleaning everything that's got anything to do with ${name}!\n"
 	@docker stop $$(docker ps -qa)			# stop all running containers
 	@docker system prune --all --force --volumes	# remove all (also used) images
 	@docker network prune --force			# remove all networks
