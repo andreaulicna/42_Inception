@@ -161,44 +161,32 @@ CMD ["/usr/bin/mysqld", "--skip-log-error"]					# specify the default command to
 **Script to create database**
 ```
 #!bin/sh
-# Check if the MySQL "mysql" system database directory does not exist
-if [ ! -d "/var/lib/mysql/mysql" ]; then
 
-		# Change ownership of the MySQL data directory to the mysql user and group
-		chown -R mysql:mysql /var/lib/mysql
-
-		# Initialize the MySQL data directory and create system tables
-		mysql_install_db --basedir=/usr --datadir=/var/lib/mysql --user=mysql --rpm
-
-		# Create a temporary file and store its name in tfile
-		tfile=`mktemp`
-		# If the temporary file was not created successfully, exit with an error
-		if [ ! -f "$tfile" ]; then
+if [ ! -d "/var/lib/mysql/mysql" ]; then													# Check if the MySQL "mysql" system database directory does not exist
+		chown -R mysql:mysql /var/lib/mysql													# Change ownership of the MySQL data directory to the mysql user and group
+		mysql_install_db --basedir=/usr --datadir=/var/lib/mysql --user=mysqil --rpm			# Initialize the MySQL data directory and create system tables
+		tfile=`mktemp`																		# Create a temporary file and store its name in tfile
+		if [ ! -f "$tfile" ]; then															# If the temporary file was not created successfully, exit with an error
 				return 1
 		fi
 fi
 
-# Check if the "wordpress" database does not exist
-if [ ! -d "/var/lib/mysql/wordpress" ]; then
-
-		# Create a new SQL script file with commands to configure the MySQL server
-		cat << EOF > /tmp/create_db.sql
-USE mysql; # Switch to the mysql system database
-FLUSH PRIVILEGES; # Reload the grant tables in memory
-DELETE FROM     mysql.user WHERE User=''; # Remove anonymous users
-DROP DATABASE test; # Drop the default test database
-DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%'; # Remove privileges on test database
+if [ ! -d "/var/lib/mysql/wordpress" ]; then												# Check if the "wordpress" database does not exist
+		cat << EOF > /tmp/create_db.sql														# Create a new SQL script file with commands to configure the MySQL server
+USE mysql; 																					# Switch to the mysql system database
+FLUSH PRIVILEGES; 																			# Reload the grant tables in memory
+DELETE FROM     mysql.user WHERE User=''; 													# Remove anonymous users
+DROP DATABASE test; 																		# Drop the default test database
+DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%'; 										# Remove privileges on test database
 DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1'); # Remove remote root access
-ALTER USER 'root'@'localhost' IDENTIFIED BY '${DB_ROOT}'; # Set the root password
-CREATE DATABASE ${DB_NAME} CHARACTER SET utf8 COLLATE utf8_general_ci; # Create the wordpress database with UTF-8 encoding
-CREATE USER '${DB_USER}'@'%' IDENTIFIED by '${DB_PASS}'; # Create a new user for wordpress
-GRANT ALL PRIVILEGES ON wordpress.* TO '${DB_USER}'@'%'; # Grant all privileges on the wordpress database to the new user
-FLUSH PRIVILEGES; # Reload the grant tables in memory
+ALTER USER 'root'@'localhost' IDENTIFIED BY '${DB_ROOT}'; 									# Set the root password
+CREATE DATABASE ${DB_NAME} CHARACTER SET utf8 COLLATE utf8_general_ci; 						# Create the wordpress database with UTF-8 encoding
+CREATE USER '${DB_USER}'@'%' IDENTIFIED by '${DB_PASS}'; 									# Create a new user for wordpress
+GRANT ALL PRIVILEGES ON wordpress.* TO '${DB_USER}'@'%'; 									# Grant all privileges on the wordpress database to the new user
+FLUSH PRIVILEGES; 																			# Reload the grant tables in memory
 EOF
-		# Execute the SQL script using mysqld with bootstrap option for initial setup
-		/usr/bin/mysqld --user=mysql --bootstrap < /tmp/create_db.sql
-		# Remove the temporary SQL script file
-		rm -f /tmp/create_db.sql
+		/usr/bin/mysqld --user=mysql --bootstrap < /tmp/create_db.sql						# Execute the SQL script using mysqld with bootstrap option for initial setup
+		rm -f /tmp/create_db.sql															# Remove the temporary SQL script file
 fi
 ```
 
@@ -220,27 +208,31 @@ The script performs several steps to ensure the MySQL (MariaDB) database is prop
 
 #### Docker container: Wordpress
 **Dockerfile**
+- What is needed:
+  - PHP with plugins for Wordpress
+  - php-fpm for communication with NGINX
+  - Wordpress itself
 
 ```
 FROM alpine:3.20
-ARG PHP_VERSION=8 \
-    DB_NAME \
+ARG PHP_VERSION=8 \											# specify php version as a command line argument (ARG instruction)
+    DB_NAME \												# specify arguments saved in .env (ARG instruction)
     DB_USER \
     DB_PASS
 RUN apk update && apk upgrade && apk add --no-cache \		# the usual + list of components:
     php${PHP_VERSION} \										# php which wordpress runs on
     php${PHP_VERSION}-fpm \									# php-fpm manages interaction with nginx
-    php${PHP_VERSION}-mysqli \								# php-mysqli manages interaction with mariadb
-	php${PHP_VERSION}-json \
-    php${PHP_VERSION}-curl \
-    php${PHP_VERSION}-dom \
-    php${PHP_VERSION}-exif \
-    php${PHP_VERSION}-fileinfo \
-    php${PHP_VERSION}-mbstring \
-    php${PHP_VERSION}-openssl \
-    php${PHP_VERSION}-xml \
-    php${PHP_VERSION}-zip \
-    php${PHP_VERSION}-redis \								# needed for bonus
+    php${PHP_VERSION}-mysqli \								# required php extension: manages interaction with mariadb (alternative: mysqlnd)
+	php${PHP_VERSION}-json \								# required php extension: used for communications with other servers and processing data in JSON format
+    php${PHP_VERSION}-curl \								# highly recommended php extension: performs remote request operations
+    php${PHP_VERSION}-dom \									# highly recommended php extension: used to validate Text Widget content and to automatically configure IIS7+
+    php${PHP_VERSION}-exif \								# highly recommended php extension: works with metadata stored in images
+    php${PHP_VERSION}-fileinfo \							# highly recommended php extension: used to detect mimetype of file uploads
+    php${PHP_VERSION}-mbstring \							# highly recommended php extension: used to properly handle UTF8 text (and required by php-exif, but apk should handle these dependencies automatically)
+    php${PHP_VERSION}-openssl \								# highly recommended php extension: SSL-based (secure socket layer) connections to other hosts
+    php${PHP_VERSION}-xml \									# highly recommended php extension: used for XML parsing, such as from a third-party site
+    php${PHP_VERSION}-zip \									# highly recommended php extension: used for decompressing Plugins, Themes, and WordPress update packages
+    php${PHP_VERSION}-redis \								# needed for bonus: interface with Redis
     wget \													# needed to download wordpress itself
     unzip \													# unzip the archive with downloaded wordpress
 	sed -i "s|listen = 127.0.0.1:9000|listen = 9000|g" \	# set www.conf, so that the fastCGI listens to all connections on port 9000
@@ -260,3 +252,102 @@ RUN sh wp-config-create.sh && rm wp-config-create.sh && \	# run wordpress initia
     chmod -R 0777 wp-content/								# give all users rights to the wp-content folder - management of themes, plugins, and other files
 CMD ["/usr/sbin/php-fpm8", "-F"]							# launch installed php-fpm
 ```
+
+**Dockerfile - further explanation**:
+- **Why to install these PHP extensions?**
+  - The list of extensions is from the Wordpress documentation. All the required and most of the highly recommended extensions are included.
+
+
+**Tests to check that Wordpress works**
+- `docker exec -it wordpress ps aux | grep 'php'`: lists the processes related to PHP running inside the container
+  - there should be 3 processes (one master and one worker) running and the output is going to have the following format:
+  ```
+  [PID] [user running the process] [CPU time used by the process] [the commnad executed to run the process] [description of whether it is a master or worker process] 
+  ```
+  - `nobody` is an actual user on Unix-like operating systems:
+    - <ins>minimal privileges</ins>: The `nobody` user has very limited permissions and is not allowed to perform administrative tasks or access sensitive files.
+    - <ins>security</ins>: Running processes as `nobody` helps to contain the impact of security vulnerabilities. If a process running as `nobody` is compromised, the attacker gains very limited access to the system.
+    - <ins>common usage</ins>: It is commonly used for running web servers, network services, and other applications that do not require elevated privileges.
+  - master process: manages worker processes and has higher privileges (e.g., `root`).
+    - starts, stops, and monitors worker processes
+    - reads configuration files
+	- handles system signals
+  - worker process: handles actual workload (e.g., processing requests) and has lower privileges (e.g. `nobody`)
+    - executes tasks assigned by the master process
+    - processes incoming requests
+    - performs computations or data retrieval
+- `docker exec -it wordpress php -v`: outputs the PHP version
+- `docker exec -it wordpress php -m`: lists all installed modules -> should correspond with what we have in the Dockerfile + dependencies that get automatically installed
+
+<br>
+
+### BONUS
+#### Redis cache
+**Dockerfile**
+```
+FROM alpine:3.19															# specify the base image - alpine is small size and secure
+
+RUN apk update && apk upgrade && \											# update package list
+    apk add --no-cache redis && \											# install without caching the package index to save space
+    sed -i "s|bind 127.0.0.1|#bind 127.0.0.1|g"  /etc/redis.conf && \		# comments out the `bind 127.0.0.1` line in the Redis config file to allow connection from any IP address
+    sed -i "s|# maxmemory <bytes>|maxmemory 20mb|g"  /etc/redis.conf && \	# set maximum memory usage for Redis to 20MB
+    echo "maxmemory-policy allkeys-lru" >> /etc/redis.conf					# append the `maxmemory-policy allkeys-lru` setting to the Redis configuration file, which specifies that Redis should remove the least recently used keys when the maximum memory is reached
+
+EXPOSE 6379																	# expose port 6379 which is the default port for Redis
+
+CMD [ "redis-server" , "/etc/redis.conf" ]									# specify the command to run when the container starts -> runs the Redis server using modified configuration file located at /etc/redis.conf
+```
+
+**Dockerfile - further explanation**:
+- **Why install with `--no-cache`?**
+  - Smaller image size, so faster to build, pull and deploy.
+  - By not caching, the package list will always stay up-to-date.
+  - Cleaner image as unnecessary files that are needed only during the build process are not included.
+- **Why comment out the 127 bind?**
+  - Useful when needed assess from a different machine, e.g. web server or another application server
+  - Other containers can connect to the Redis container
+- **Why is the max. memory size set to 20MB?**
+  - We're in an environment with limited resources - VM.
+  - More space is realistically not needed for this project.
+
+**Tests to check that Redis works**
+- `docker exec -it redis redis-cli`: iteracts with a running Redis container using the Redis command-line interface (CLI)
+  - command `ping` should return `PONG` to show that the server is working and pinging
+- `docker exec -it redis redis-cli monitor`: opens an interactive terminal session listing all the commands being processed by the Redis server in real-time
+
+#### FTP server
+```
+FROM alpine:3.19																				# specify the base image - alpine is small size and secure
+
+ARG FTP_USER \																					# specify arguments saved in .env (ARG instruction)
+    FTP_PASS
+
+RUN apk update && apk upgrade && \
+    apk add --no-cache vsftpd
+
+RUN adduser -h /var/www -s /bin/false -D ${FTP_USER} && \										# create a new user to connect to the server, no shell acess so that it is purely for FTP access = security measure
+    echo "${FTP_USER}:${FTP_PASS}" | /usr/sbin/chpasswd && \									# set the password for the user based on the provided argument
+    adduser ${FTP_USER} root																	# add user to the root group so that they have access to process the wordpress directory	
+
+RUN sed -i "s|#chroot_local_user=YES|chroot_local_user=YES|g"  /etc/vsftpd/vsftpd.conf && \		# configuration change: enable chroot for local users = security measure where each user is limited to their own home directory
+    sed -i "s|#local_enable=YES|local_enable=YES|g"  /etc/vsftpd/vsftpd.conf && \				# configuration change: enable local user login = security measure where only users with valid credentials can access the FTP server (no anonymous users)
+    sed -i "s|#write_enable=YES|write_enable=YES|g"  /etc/vsftpd/vsftpd.conf && \				# configuration change: allow write permissions for local users
+    sed -i "s|#local_umask=022|local_umask=007|g"  /etc/vsftpd/vsftpd.conf						# configuration change: set local file mask to 007, meaning that new files will have permissions 770 (owner, group, others)
+
+RUN echo "allow_writeable_chroot=YES" >> /etc/vsftpd/vsftpd.conf &&\							# additional configuration: allow writable chroot directories - default is that chroot directories (the home directory the users are restricted to) are not writable, but we want them to be (e.g. uploading a file to home directory)
+    echo 'seccomp_sandbox=NO' >> /etc/vsftpd/vsftpd.conf && \									# additional configuration: disable seccomp sandboxing - could cause issues if enabled as it is a Linux kernal feature that rescricts the system calls a process can make
+    echo 'pasv_enable=YES' >> /etc/vsftpd/vsftpd.conf											# additional configuration: enable passive mode - improves compatibility with clients behind firewalls as it allows them to establish connection (both control and data connection)
+
+WORKDIR /var/www																				# set working directory
+
+EXPOSE 21																						# expose port 21 which is the default port for FTP	
+
+CMD [ "/usr/sbin/vsftpd", "/etc/vsftpd/vsftpd.conf" ]											# specify command to run when container starts -> runs vsftpd with the specified configuration file
+```
+
+**Tests to check that FTP works**
+- need to install (filezilla) FTP client: `sudo apt install -y filezilla`
+
+
+### Useful commands
+- `cut -d: -f1 /etc/passwd`: list all users on a Linux system
