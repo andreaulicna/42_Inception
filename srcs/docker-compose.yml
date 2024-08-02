@@ -53,6 +53,16 @@ services:
     networks:
       - inception
 
+  redis:
+    build:
+      context: .
+      dockerfile: requirements/bonus/redis/Dockerfile
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - inception
+    restart: always
 
 # This is a common section for NGINX and Wordpress to define how the data exchange between them will look like.
 # It also manages the storing of the database - it will be stored in home/aulicna/data.
