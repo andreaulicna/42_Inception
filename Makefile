@@ -25,7 +25,7 @@ clean: stop
 
 fclean:
 	@echo "Cleaning everything that's got anything to do with ${name}!\n"
-	@docker stop $$(docker ps -qa)			# stop all running containers
+	@CONTAINERS=$$(docker ps -qa); if [ -n "$$CONTAINERS" ]; then docker stop $$CONTAINERS; fi
 	@docker system prune --all --force --volumes	# remove all (also used) images
 	@docker network prune --force			# remove all networks
 	@docker volume prune --force			# remove all connected partitions
