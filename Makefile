@@ -19,7 +19,7 @@ re: clean all
 
 clean: stop
 	@echo "Cleaning ${name}\n"
-	@docker system prune -a				# remove all unused images
+	@docker system prune -a --force	# remove all unused images
 	@sudo rm -rf ~/data/mariadb/*
 	@sudo rm -rf ~/data/wordpress/*
 
@@ -27,8 +27,8 @@ fclean:
 	@echo "Cleaning everything that's got anything to do with ${name}!\n"
 	@CONTAINERS=$$(docker ps -qa); if [ -n "$$CONTAINERS" ]; then docker stop $$CONTAINERS; fi
 	@docker system prune --all --force --volumes	# remove all (also used) images
-	@docker network prune --force			# remove all networks
-	@docker volume prune --force			# remove all connected partitions
+	@docker network prune --force	# remove all networks
+	@docker volume prune --force	# remove all connected partitions
 	@sudo rm -rf ~/data/mariadb/*
 	@sudo rm -rf ~/data/wordpress/*
 

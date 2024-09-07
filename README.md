@@ -1,5 +1,3 @@
-<<<<<<< HEAD
-=======
 # 42_Inception
 
  This project is a System Administration related exercise.
@@ -353,4 +351,3 @@ CMD [ "/usr/sbin/vsftpd", "/etc/vsftpd/vsftpd.conf" ]											# specify comman
 
 ### Useful commands
 - `cut -d: -f1 /etc/passwd`: list all users on a Linux system
->>>>>>> 812141ade65a4aa9590a9181fb287c5f69d6fd69
