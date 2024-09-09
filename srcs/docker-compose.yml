@@ -13,7 +13,7 @@ services:
     volumes: # container needs to see the config and keys
       - ./requirements/nginx/conf/:/etc/nginx/http.d/
       - ./requirements/nginx/tools:/etc/nginx/ssl/
-      - wp-volume:/var/www/
+      - www-vol:/var/www/html/wordpress
     restart: always # restar type
     networks:
       - inception
@@ -38,64 +38,62 @@ services:
 
   wordpress:
     build:
-      context: .
-      dockerfile: requirements/wordpress/Dockerfile
+      context: requirements/wordpress/
       args:
         DB_NAME: ${DB_NAME}
         DB_USER: ${DB_USER}
         DB_PASS: ${DB_PASS}
+        DB_HOST: ${DB_HOST}
     container_name: wordpress
+    volumes:
+      - www-vol:/var/www/html/wordpress
     depends_on:
       - mariadb
-    volumes:
-      - wp-volume:/var/www/
-    restart: always # restar type
-    networks:
-      - inception
-
-  redis:
-    build:
-      context: .
-      dockerfile: requirements/bonus/redis/Dockerfile
-    container_name: redis
-    ports:
-      - "6379:6379"
     networks:
       - inception
     restart: always
 
-  
-  vsftpd:
-    build:
-      context: .
-      dockerfile: requirements/bonus/vsftpd/Dockerfile
-      args:
-        FTP_USER: ${FTP_USER}
-        FTP_PASS: ${FTP_PASS}
-    container_name: vsftpd
-    ports:
-      - "21:21"
-    volumes:
-      - wp-volume:/var/www/
-    networks:
-      - inception
-    restart: always
-
-  
+#  redis:
+#    build:
+#      context: .
+#      dockerfile: requirements/bonus/redis/Dockerfile
+#    container_name: redis
+#    ports:
+#      - "6379:6379"
+#    networks:
+#      - inception
+#    restart: always
+#
+#  
+#  vsftpd:
+#    build:
+#      context: .
+#      dockerfile: requirements/bonus/vsftpd/Dockerfile
+#      args:
+#        FTP_USER: ${FTP_USER}
+#        FTP_PASS: ${FTP_PASS}
+#    container_name: vsftpd
+#    ports:
+#      - "21:21"
+#    volumes:
+#      - wp-volume:/var/www/ #should be renamed to www-vol as for nginx and wordpress
+#    networks:
+#      - inception
+#    restart: always
 
 # This is a common section for NGINX and Wordpress to define how the data exchange between them will look like.
 # It also manages the storing of the database - it will be stored in home/aulicna/data.
 volumes:
-  wp-volume:
+  www-vol:
     driver_opts:
       o: bind
       type: none
-      device: /home/${USER}/data/wordpress
+      device: /home/${USER}/data/www-vol
   db-volume:
     driver_opts:
       o: bind
       type: none
-      device: /home/${USER}/data/mariadb
+      device: /home/${USER}/data/db-volume
 
 # This section unites all the containers into a single (named) network.
 # By default, all the containers defined within one docker-compose file are united in one network, but we cannot set the name of such a network. Accessing the network by a name will be useful later on.

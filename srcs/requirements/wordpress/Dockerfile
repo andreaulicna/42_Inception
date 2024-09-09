@@ -1,38 +1,30 @@
-FROM alpine:3.18
-ARG PHP_VERSION=8 \
-	PHP_SUBVERSION=1 \
-    DB_NAME \
+FROM alpine:3.19
+
+ARG DB_NAME \
     DB_USER \
-    DB_PASS
+    DB_PASS \
+	DB_HOST
+
 RUN apk update && apk upgrade && apk add --no-cache \
-    php${PHP_VERSION}${PHP_SUBVERSION} \
-    php${PHP_VERSION}${PHP_SUBVERSION}-fpm \
-    php${PHP_VERSION}${PHP_SUBVERSION}-mysqli \
-    php${PHP_VERSION}${PHP_SUBVERSION}-json \
-    php${PHP_VERSION}${PHP_SUBVERSION}-curl \
-    php${PHP_VERSION}${PHP_SUBVERSION}-dom \
-    php${PHP_VERSION}${PHP_SUBVERSION}-exif \
-    php${PHP_VERSION}${PHP_SUBVERSION}-fileinfo \
-    php${PHP_VERSION}${PHP_SUBVERSION}-mbstring \
-    php${PHP_VERSION}${PHP_SUBVERSION}-openssl \
-    php${PHP_VERSION}${PHP_SUBVERSION}-xml \
-    php${PHP_VERSION}${PHP_SUBVERSION}-zip \
-    php${PHP_VERSION}${PHP_SUBVERSION}-redis \
+	php \
+	php-fpm \
+	php-mysqli \
 	wget \
 	unzip && \
-    sed -i "s|listen = 127.0.0.1:9000|listen = 9000|g" \
-		/etc/php81/php-fpm.d/www.conf && \
-    sed -i "s|;listen.owner = nobody|listen.owner = nobody|g" \
-		/etc/php81/php-fpm.d/www.conf && \
-    sed -i "s|;listen.group = nobody|listen.group = nobody|g" \
-		/etc/php81/php-fpm.d/www.conf && \
+    sed -i "s|127.0.0.1|0.0.0.0|g" /etc/php82/php-fpm.d/www.conf && \
+    sed -i "s|nobody|root|g" /etc/php82/php-fpm.d/www.conf && \
     rm -f /var/cache/apk/*
-WORKDIR /var/www
-RUN wget https://wordpress.org/latest.zip && \
-    unzip latest.zip && \
-    cp -rf wordpress/* . && \
-    rm -rf wordpress latest.zip
-COPY ./requirements/wordpress/conf/wp-config-create.sh .
-RUN sh wp-config-create.sh && rm wp-config-create.sh && \
-    chmod -R 0777 wp-content/
-CMD ["php-fpm81", "-F"]
+
+RUN wget https://wordpress.org/latest.tar.gz && \
+	tar xvf latest.tar.gz && \
+	mkdir -p /var/www/html/wordpress && \
+	cp -r /wordpress/* /var/www/html/wordpress/
+
+COPY ./conf/wp-config-create.sh .
+
+RUN sh wp-config-create.sh && \
+	rm wp-config-create.sh && \
+	chmod -R 0777 /var/www/html/wordpress/wp-content/ && \
+	rm -rf /wordpress /latest.tar.gz
+
+CMD ["php-fpm82", "-FR"]

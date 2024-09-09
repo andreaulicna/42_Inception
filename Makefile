@@ -20,8 +20,9 @@ re: clean all
 clean: stop
 	@echo "Cleaning ${name}\n"
 	@docker system prune -a --force	# remove all unused images
-	@sudo rm -rf ~/data/mariadb/*
-	@sudo rm -rf ~/data/wordpress/*
+	@sudo rm -rf ~/data/db-volume/*
+	@sudo rm -rf ~/data/www-vol/*
+	@sudo rm -rf ~/data
 
 fclean:
 	@echo "Cleaning everything that's got anything to do with ${name}!\n"
@@ -29,7 +30,8 @@ fclean:
 	@docker system prune --all --force --volumes	# remove all (also used) images
 	@docker network prune --force	# remove all networks
 	@docker volume prune --force	# remove all connected partitions
-	@sudo rm -rf ~/data/mariadb/*
-	@sudo rm -rf ~/data/wordpress/*
+	@sudo rm -rf ~/data/db-volume/*
+	@sudo rm -rf ~/data/www-vol/*
+	@sudo rm -rf ~/data
 
 .PHONY: all build stop re clean fclean
