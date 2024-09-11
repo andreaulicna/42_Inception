@@ -53,33 +53,34 @@ services:
       - inception
     restart: always
 
-#  redis:
-#    build:
-#      context: .
-#      dockerfile: requirements/bonus/redis/Dockerfile
-#    container_name: redis
-#    ports:
-#      - "6379:6379"
-#    networks:
-#      - inception
-#    restart: always
-#
-#  
-#  vsftpd:
-#    build:
-#      context: .
-#      dockerfile: requirements/bonus/vsftpd/Dockerfile
-#      args:
-#        FTP_USER: ${FTP_USER}
-#        FTP_PASS: ${FTP_PASS}
-#    container_name: vsftpd
-#    ports:
-#      - "21:21"
-#    volumes:
-#      - wp-volume:/var/www/ #should be renamed to www-vol as for nginx and wordpress
-#    networks:
-#      - inception
-#    restart: always
+  redis:
+    build:
+      context: .
+      dockerfile: requirements/bonus/redis/Dockerfile
+    container_name: redis
+    depends_on:
+      - wordpress
+    ports:
+      - "6379:6379"
+    networks:
+      - inception
+    restart: always
+  
+  vsftpd:
+    build:
+      context: .
+      dockerfile: requirements/bonus/vsftpd/Dockerfile
+      args:
+        FTP_USER: ${FTP_USER}
+        FTP_PASS: ${FTP_PASS}
+    container_name: vsftpd
+    ports:
+      - "21:21"
+    volumes:
+      - www-vol:/var/www
+    networks:
+      - inception
+    restart: always
 
 # This is a common section for NGINX and Wordpress to define how the data exchange between them will look like.
 # It also manages the storing of the database - it will be stored in home/aulicna/data.

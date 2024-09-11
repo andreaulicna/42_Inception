@@ -9,6 +9,8 @@ RUN apk update && apk upgrade && apk add --no-cache \
 	php \
 	php-fpm \
 	php-mysqli \
+	php-ctype \
+	php-redis \
 	wget \
 	unzip && \
     sed -i "s|127.0.0.1|0.0.0.0|g" /etc/php82/php-fpm.d/www.conf && \

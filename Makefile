@@ -20,9 +20,9 @@ re: clean all
 clean: stop
 	@echo "Cleaning ${name}\n"
 	@docker system prune -a --force	# remove all unused images
-	@sudo rm -rf ~/data/db-volume/*
-	@sudo rm -rf ~/data/www-vol/*
-	@sudo rm -rf ~/data
+#	@sudo rm -rf ~/data/db-volume/*
+#	@sudo rm -rf ~/data/www-vol/*
+#	@sudo rm -rf ~/data
 
 fclean:
 	@echo "Cleaning everything that's got anything to do with ${name}!\n"
