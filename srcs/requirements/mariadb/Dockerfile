@@ -1,8 +1,7 @@
 FROM alpine:3.19
 
 ARG DB_NAME \
-    DB_USER \
-    DB_PASS
+    DB_USER 
 
 RUN apk update && apk add --no-cache mariadb mariadb-client
 
@@ -21,6 +20,13 @@ RUN mysql_install_db --user=mysql --datadir=/var/lib/mysql
 EXPOSE 3306
 
 COPY requirements/mariadb/conf/create_db.sh .
-RUN sh create_db.sh
+RUN --mount=type=secret,id=db_root_password \
+    --mount=type=secret,id=db_password \
+	export DB_ROOT=$(cat /run/secrets/db_root_password) && \
+	export DB_PASS=$(cat /run/secrets/db_password) && \
+#	echo $DB_ROOT >> test.txt && \
+#	echo $DB_PASS >> test.txt && \
+	sh create_db.sh
+
 USER mysql
 CMD ["/usr/bin/mysqld", "--skip-log-error"]

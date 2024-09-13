@@ -4,7 +4,8 @@ name = inception
 all:
 	@echo "Configuring ${name}\n"
 	@bash srcs/requirements/wordpress/tools/make_dir.sh
-	@docker-compose -f ./srcs/docker-compose.yml --env-file srcs/.env up -d
+	@docker-compose -f ./srcs/docker-compose.yml --env-file srcs/.env up -d --build 
+#	--build needed to force the compilation to create the image instead of getting it from docker hub which would be the default due to the same name
 
 build:
 	@echo "Building ${name}\n"

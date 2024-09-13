@@ -351,3 +351,9 @@ CMD [ "/usr/sbin/vsftpd", "/etc/vsftpd/vsftpd.conf" ]											# specify comman
 
 ### Useful commands
 - `cut -d: -f1 /etc/passwd`: list all users on a Linux system
+
+### FAQ
+- **Why is mysql user's password "invalid"?**
+  - https://stackoverflow.com/questions/59537896/mysql-user-has-password-invalid-is-this-the-normal-thing
+- **.env vs secrets**
+  - .env is to store non-sensitive because with command `docker image history mariadb` we can see the value of passwords if they are passed as ARG in the Dockerfile
