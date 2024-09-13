@@ -1,5 +1,6 @@
 services:
   nginx:
+    image: nginx
     build:
       context: .
       dockerfile: requirements/nginx/Dockerfile
@@ -17,6 +18,7 @@ services:
       - inception
   
   mariadb:
+    image: mariadb
     build:
       secrets:
         - db_root_password
@@ -38,6 +40,7 @@ services:
       - inception
 
   wordpress:
+    image: wordpress
     build:
       secrets:
         - db_password
@@ -57,6 +60,7 @@ services:
     restart: always
 
   redis:
+    image: redis
     build:
       context: .
       dockerfile: requirements/bonus/redis/Dockerfile
@@ -70,12 +74,15 @@ services:
     restart: always
   
   vsftpd:
+    image: vsftpd
     build:
+      secrets:
+        - ftp_password
       context: .
       dockerfile: requirements/bonus/vsftpd/Dockerfile
       args:
         FTP_USER: ${FTP_USER}
-        FTP_PASS: ${FTP_PASS}
+        #FTP_PASS: ${FTP_PASS}
     container_name: vsftpd
     ports:
       - "21:21"
@@ -110,3 +117,5 @@ secrets:
     file: ../secrets/db_root_password.txt
   db_password:
     file: ../secrets/db_password.txt
+  ftp_password:
+    file: ../secrets/ftp_password.txt
