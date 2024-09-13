@@ -91,6 +91,36 @@ services:
     networks:
       - inception
     restart: always
+  
+  adminer:
+    container_name: adminer
+    image: adminer
+    build:
+      context: requirements/bonus/adminer/
+    depends_on:
+      - mariadb
+    ports:
+      - "8081:8081"
+    networks:
+     - inception
+    restart: always
+
+  cadvisor:
+    container_name: cadvisor
+    image: cadvisor
+    build:
+      context: requirements/bonus/cadvisor/
+    ports:
+      - "8080:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    devices:
+      - /dev/kmsg
+    restart: always
 
 # This section unites all the containers into a single (named) network.
 # By default, all the containers defined within one docker-compose file are united in one network, but we cannot set the name of such a network. Accessing the network by a name will be useful later on.
