@@ -1,10 +1,10 @@
 services:
   nginx:
+    container_name: nginx
     image: nginx
     build:
       context: .
       dockerfile: requirements/nginx/Dockerfile
-    container_name: nginx
     depends_on: # specify dependencies
       - wordpress # nginx needs to start after wordpress
     ports:
@@ -18,6 +18,7 @@ services:
       - inception
   
   mariadb:
+    container_name: mariadb
     image: mariadb
     build:
       secrets:
@@ -28,9 +29,6 @@ services:
       args:
         DB_NAME: ${DB_NAME}
         DB_USER: ${DB_USER}
-      #  DB_PASS: ${DB_PASS}
-      #  DB_ROOT: ${DB_ROOT}
-    container_name: mariadb
     ports:
       - "3306:3306"
     volumes:
@@ -40,6 +38,7 @@ services:
       - inception
 
   wordpress:
+    container_name: wordpress
     image: wordpress
     build:
       secrets:
@@ -49,8 +48,6 @@ services:
         DB_NAME: ${DB_NAME}
         DB_USER: ${DB_USER}
         DB_HOST: ${DB_HOST}
-        #DB_PASS: ${DB_PASS}
-    container_name: wordpress
     volumes:
       - www-vol:/var/www/html/wordpress
     depends_on:
@@ -60,11 +57,11 @@ services:
     restart: always
 
   redis:
+    container_name: redis
     image: redis
     build:
       context: .
       dockerfile: requirements/bonus/redis/Dockerfile
-    container_name: redis
     depends_on:
       - wordpress
     ports:
@@ -74,6 +71,7 @@ services:
     restart: always
   
   vsftpd:
+    container_name: vsftpd
     image: vsftpd
     build:
       secrets:
@@ -82,8 +80,6 @@ services:
       dockerfile: requirements/bonus/vsftpd/Dockerfile
       args:
         FTP_USER: ${FTP_USER}
-        #FTP_PASS: ${FTP_PASS}
-    container_name: vsftpd
     ports:
       - "21:21"
     volumes:
@@ -120,6 +116,18 @@ services:
       - /dev/disk/:/dev/disk:ro
     devices:
       - /dev/kmsg
+    restart: always
+
+  website:
+    container_name: website
+    image: website
+    build:
+      context: .
+      dockerfile: requirements/bonus/web/Dockerfile
+    ports:
+      - "4242:4242"
+    networks:
+      - inception
     restart: always
 
 # This section unites all the containers into a single (named) network.
