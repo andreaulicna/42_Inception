@@ -43,7 +43,8 @@ services:
     build:
       secrets:
         - db_password
-      context: requirements/wordpress/
+      context: .
+      dockerfile: requirements/wordpress/Dockerfile
       args:
         DB_NAME: ${DB_NAME}
         DB_USER: ${DB_USER}
@@ -92,7 +93,8 @@ services:
     container_name: adminer
     image: adminer
     build:
-      context: requirements/bonus/adminer/
+      context: .
+      dockerfile: requirements/bonus/adminer/Dockerfile
     depends_on:
       - mariadb
     ports:
@@ -105,7 +107,8 @@ services:
     container_name: cadvisor
     image: cadvisor
     build:
-      context: requirements/bonus/cadvisor/
+      context: .
+      dockerfile: requirements/bonus/cadvisor/Dockerfile
     ports:
       - "8080:8080"
     volumes:
@@ -116,11 +119,13 @@ services:
       - /dev/disk/:/dev/disk:ro
     devices:
       - /dev/kmsg
+    networks:
+      - inception
     restart: always
 
-  website:
-    container_name: website
-    image: website
+  web:
+    container_name: web
+    image: web
     build:
       context: .
       dockerfile: requirements/bonus/web/Dockerfile

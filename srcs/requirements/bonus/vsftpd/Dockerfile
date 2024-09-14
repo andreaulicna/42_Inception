@@ -1,14 +1,12 @@
 FROM alpine:3.19
 
 ARG FTP_USER
-   # FTP_PASS
 
 RUN apk update && apk upgrade && \
     apk add --no-cache vsftpd
 
 RUN --mount=type=secret,id=ftp_password \
 	export FTP_PASS=$(cat /run/secrets/ftp_password) && \
-	#echo $FTP_PASS >> test.txt && \
 	adduser -h /var/www -s /bin/false -D ${FTP_USER} && \
     echo "${FTP_USER}:${FTP_PASS}" | /usr/sbin/chpasswd && \
     adduser ${FTP_USER} root

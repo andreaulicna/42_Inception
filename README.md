@@ -88,7 +88,22 @@
 - Php-Fpm: A set of libraries for the FastCGI API, port: 9000
 - Wordpress: Content Management System
 - MariaDB: Relational database, port: 3306
+
 <br>
+
+**Docker containers vs Docker images**
+
+A Docker image is a lightweight, standalone, and executable software package that includes everything needed to run a piece of software, including the code, runtime, libraries, environment variables, and configuration files. Docker images are used to create Docker containers, which are instances of these images running as isolated processes on a host operating system.
+
+<br>
+
+**Key characteristics of Docker images:**
+- **Immutable**: Once created, a Docker image does not change. Any modifications result in the creation of a new image.
+- **Layered**: Docker images are built in layers. Each layer represents a set of file changes or additions. Layers are cached and reused, making image builds efficient.
+- **Portable**: Docker images can be shared and run on any system that supports Docker, ensuring consistency across different environments.
+
+<br>
+
 **Comands**:
 - start: `docker-compose up -d` (The `-d` flag stands for "detached" mode - it starts the containers in the background. This means that the Docker containers start up and run without attaching to the current terminal session, allowing one to continue using the terminal for other commands while the containers are running. Without the `-d` flag, the container logs would be output to the terminal, and stopping the containers would require opening a new terminal session or stopping the containers with CTRL+C in the current session.)
 - stop: `docker-compose down`
@@ -258,8 +273,7 @@ CMD ["php-fpm82", "-F"]										# launch installed php-fpm
 
 **Dockerfile - further explanation**:
 - **Why to install these PHP extensions?**
-  - The list of extensions is from the Wordpress documentation. All the required and most of the highly recommended extensions are included.
-
+  - The list of extensions is from the Wordpress documentation. Really just the ones needed to get things working are installed.
 
 **Tests to check that Wordpress works**
 - `docker exec -it wordpress ps aux | grep 'php'`: lists the processes related to PHP running inside the container
@@ -279,8 +293,6 @@ CMD ["php-fpm82", "-F"]										# launch installed php-fpm
     - executes tasks assigned by the master process
     - processes incoming requests
     - performs computations or data retrieval
-- `docker exec -it wordpress php -v`: outputs the PHP version
-- `docker exec -it wordpress php -m`: lists all installed modules -> should correspond with what we have in the Dockerfile + dependencies that get automatically installed
 
 <br>
 
@@ -288,12 +300,13 @@ CMD ["php-fpm82", "-F"]										# launch installed php-fpm
 #### Redis cache
 **Dockerfile**
 ```
-FROM alpine:3.19															# specify the base image - alpine is small size and secure
+FROM alpine:3.19															# specify the base image - penultimate stable version
 
 RUN apk update && apk upgrade && \											# update package list
     apk add --no-cache redis && \											# install without caching the package index to save space
     sed -i "s|bind 127.0.0.1|#bind 127.0.0.1|g"  /etc/redis.conf && \		# comments out the `bind 127.0.0.1` line in the Redis config file to allow connection from any IP address
     sed -i "s|# maxmemory <bytes>|maxmemory 20mb|g"  /etc/redis.conf && \	# set maximum memory usage for Redis to 20MB
+    sed -i "s|protected-mode yes|protected-mode no|g"  /etc/redis.conf && \	# disabling protected mode is necessary to allow Wordpress caching plugin to access Redis server (which is now open to be accessed from external source)
     echo "maxmemory-policy allkeys-lru" >> /etc/redis.conf					# append the `maxmemory-policy allkeys-lru` setting to the Redis configuration file, which specifies that Redis should remove the least recently used keys when the maximum memory is reached
 
 EXPOSE 6379																	# expose port 6379 which is the default port for Redis
@@ -312,23 +325,22 @@ CMD [ "redis-server" , "/etc/redis.conf" ]									# specify the command to run 
 - **Why is the max. memory size set to 20MB?**
   - We're in an environment with limited resources - VM.
   - More space is realistically not needed for this project.
+- **How is Redis secure if we dissable protected mode to allow access from external sources to the Redis server?**
+  - When the setting is disables, Redis could be secured by other means, such as firewall rules, authentication, or running in a trusted network environment. 
 
-**Tests to check that Redis works**
-- `docker exec -it redis redis-cli`: iteracts with a running Redis container using the Redis command-line interface (CLI)
-  - command `ping` should return `PONG` to show that the server is working and pinging
-- `docker exec -it redis redis-cli monitor`: opens an interactive terminal session listing all the commands being processed by the Redis server in real-time
 
 #### FTP server
 ```
-FROM alpine:3.19																				# specify the base image - alpine is small size and secure
+FROM alpine:3.19																				# specify the base image - penultimate stable version
 
-ARG FTP_USER \																					# specify arguments saved in .env (ARG instruction)
-    FTP_PASS
+ARG FTP_USER																					# specify arguments saved in .env (ARG instruction)
 
 RUN apk update && apk upgrade && \
     apk add --no-cache vsftpd
 
-RUN adduser -h /var/www -s /bin/false -D ${FTP_USER} && \										# create a new user to connect to the server, no shell acess so that it is purely for FTP access = security measure
+RUN --mount=type=secret,id=ftp_password \ 														# mount (attach storage) the secrets to the build process = way of passing sensitive information to the container during the build process
+	export FTP_PASS=$(cat /run/secrets/ftp_password) && \										# export the secrets as environment variables for the subsequent script to have access to them - it is safe because the secrets will disappear along with the shell session that the building is happening in once it's done
+	adduser -h /var/www -s /bin/false -D ${FTP_USER} && \										# create a new user to connect to the server, no shell acess so that it is purely for FTP access = security measure
     echo "${FTP_USER}:${FTP_PASS}" | /usr/sbin/chpasswd && \									# set the password for the user based on the provided argument
     adduser ${FTP_USER} root																	# add user to the root group so that they have access to process the wordpress directory	
 
@@ -348,15 +360,121 @@ EXPOSE 21																						# expose port 21 which is the default port for FT
 CMD [ "/usr/sbin/vsftpd", "/etc/vsftpd/vsftpd.conf" ]											# specify command to run when container starts -> runs vsftpd with the specified configuration file
 ```
 
-**Tests to check that FTP works**
-- need to install (filezilla) FTP client: `sudo apt install -y filezilla`
+#### Adminer
+Adminer is a full-featured database management tool written in PHP. It is a lightweight alternative to tools like phpMyAdmin and provides a web-based interface to manage databases. 
+
+**Key Features:**
+- **Single File**: Adminer is distributed as a single PHP file, making it easy to deploy and use.
+- **Lightweight**: It is designed to be lightweight and fast, with a minimal footprint.
+- **Security**: Adminer includes several security features to protect against common web vulnerabilities.
+- **User-Friendly Interface**: It provides an intuitive and user-friendly interface for managing databases.
+
+**Common Use Cases:**
+- **Database Management**: Adminer allows users to perform various database management tasks such as creating, modifying, and deleting databases, tables, and records.
+- **SQL Execution**: Users can execute SQL queries directly through the Adminer interface.
+- **Backup and Restore**: Adminer provides options to export and import database data, making it useful for backup and restore operations
+
+```
+FROM alpine:3.19 										# specify the base image - penultimate stable version
+
+RUN apk update && apk upgrade && apk add --no-cache \
+	php \           									# PHP interpreter: Required to run PHP scripts.
+	php-mysqli \    									# PHP extension for MySQL: Enables PHP to interact with MySQL databases.
+	php-session \   									# allows PHP to manage user sessions
+	wget            									# Utility to download files from the web: Used to download the Adminer script.
+
+WORKDIR /var/www
+
+RUN wget https://www.adminer.org/latest.php && \		# download adminer
+    mv latest.php index.php && chmod -R 644 /var/www	# rename the downloaded file to make it easier to access via a web server as index.php is typically the default file and change permission for the web server to have access
+
+EXPOSE 8081												# container will listen on this port at runtime
+
+CMD [ "php", "-S", "[::]:8081", "-t", "/var/www" ]		# start the built-in web server
+```
+
+#### cAdvisor
+
+cAdvisor (Container Advisor) is an open-source tool developed by Google for monitoring and analyzing resource usage and performance characteristics of running containers. It provides real-time monitoring of various metrics such as CPU, memory, network, and disk usage for containers.
+
+**Key Features:**
+- **Resource Usage Metrics**: Collects and displays metrics for CPU, memory, network, and disk usage.
+- **Container Management**: Supports Docker containers and integrates with Kubernetes.
+- **Web Interface**: Provides a web-based interface for visualizing metrics.
+- **Historical Data**: Stores historical data for analysis and troubleshooting.
+- **API**: Exposes an API for accessing metrics programmatically.
+
+**Common Use Cases:**
+- **Performance Monitoring**: Helps in monitoring the performance of containers in real-time.
+- **Resource Management**: Assists in managing and optimizing resource allocation for containers.
+- **Troubleshooting**: Useful for diagnosing performance issues and bottlenecks in containerized applications.
+- **Integration with Monitoring Systems**: Can be integrated with other monitoring and alerting systems like Prometheus and Grafana.
+
+```
+FROM alpine:3.19																						# specify the base image - penultimate stable version
+
+RUN apk update && apk upgrade && apk add --no-cache \											
+	wget
+RUN wget https://github.com/google/cadvisor/releases/download/v0.49.1/cadvisor-v0.49.1-linux-amd64 && \	# download, rename and make executable
+    mv cadvisor-v0.49.1-linux-amd64 cadvisor && \ 
+    chmod +x cadvisor
+
+CMD ["./cadvisor", ""]																					# run the program
+```
 
 
-### Useful commands
-- `cut -d: -f1 /etc/passwd`: list all users on a Linux system
+<br>
 
-### FAQ
+### Tests to check that everything works
+#### Overall
+`docker ps`: show running containers
+`docker image ls`: show existing docker images
+`docker image history ls`: show how the docker images were built (reveals password passed as arguments)
+`docker image history --no-trunc ls`: show how the docker images were built with full message (reveals password passed as arguments)
+
+#### NGINX and Wordpress
+- check PHP version inside the container: `docker exec -it wordpress php -v`
+- lists all installed modules -> should correspond with what we have in the Dockerfile + dependencies that get installed automatically: `docker exec -it wordpress php -m`
+- browse the website
+
+#### MariaDB
+
+**Verify correct translation of passwords for `root` and `wpuser` users passed as secrets:**
+```
+docker exec -it mariadb mysql			#executes a command inside a running container - run mysql client command-line tool to access the database
+show databases;							#show databases that we have in the containers
+user mysql;								#switch to the correct database
+select user,password,host from user;	#show the list of users in the database
+```
+<br>
+
+**FAQ**
 - **Why is mysql user's password "invalid"?**
   - https://stackoverflow.com/questions/59537896/mysql-user-has-password-invalid-is-this-the-normal-thing
 - **.env vs secrets**
-  - .env is to store non-sensitive because with command `docker image history mariadb` we can see the value of passwords if they are passed as ARG in the Dockerfile
+  - .env is to store non-sensitive data because with command `docker image history mariadb` we can see the value of passwords if they are passed as ARG in the Dockerfile
+
+#### FTP
+- install (filezilla) FTP client: `sudo apt install -y filezilla`
+- upload and download files
+- shell into the docker to verify the existence of uploaded files: `docker exec -it vsftpd sh`
+- downloaded files get saved in the home directory of the host machine
+
+#### Redis
+```
+docker exec -it redis redis-cli	#enter the Redis command-line interface 
+ping							#ping the server -> the answer should be "PONG"
+monitor							#should start by saying "OK" and then open an interactive terminal session listing all the commands (e.g. GET requests) being processed by the Redis server in real-time as the user browses the website
+```
+
+#### Adminer
+- visit `[localhost/ IP address]:8081`
+- login with to server `mariadb` with user `wpuser`
+- on the left select `DB` `wordpress` (exists only once Wordpress has been installed)
+- browse the database
+
+#### cAdvisor
+- visit `[localhost/ IP address]:8080`
+
+#### Website
+- visit `[localhost/ IP address]:4242`
