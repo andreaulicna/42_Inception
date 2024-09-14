@@ -4,34 +4,31 @@
 
 ### Creating a virtual machine
 - save in `sgoinfre > goinfre` (network storage)
-- 4 GB should more than do for the project given its requirements
 - create a virtual hard disk and keep the default setting (VDI) in the next step as it won't be used with other virtualization software
 - dynamically allocated storage on a physical hard disk as it allocates only what is needed (and performance isn't necessarily that important)
-- virtual hard disk size left to default (8 GB)
+- increase virtual hard disk size if planning on downloading GUI
 
 ### Installation of Debian and necessary software
 - `sudo`: This package provides the `sudo` command, which allows users to run programs with the security privileges of another user (normally the superuser, or root).
 - `ufw`: Uncomplicated Firewall (ufw) is a frontend for iptables and is particularly well-suited for host-based firewalls.
-- `docker`: Docker is a platform that allows you to develop, ship, and run applications inside containers. It's used for isolating your applications in separate containers to have them run independently.
+- `docker`: Docker is a platform that allows to develop, ship, and run applications inside containers. It's used for isolating applications in separate containers to have them run independently.
 - `docker-compose`: Docker Compose is a tool for defining and running multi-container Docker applications. It uses YAML files to configure the application's services and performs the creation and start-up process of all the containers with a single command.
 - `make`: The `make` utility helps in managing and maintaining groups of programs (including but not limited to compiling and linking). It's often used in software development to compile and build applications.
-- `openbox`: Openbox is a lightweight and highly configurable window manager with extensive standards support. 
-- `xinit`: The `xinit` program allows a user to manually start an Xorg display server. The x-server is responsible for graphics in Linux and can be launched via `startx`.
 - `firefox-esr`: Firefox ESR (Extended Support Release) is a version of Firefox for organizations and other groups that need extended support for mass deployments. It's more stable and receives security updates longer than the standard version of Firefox.
 
 ### Port forwarding
 - needs to be done on the guest machine (VM via `ufw allow`) and also redirecting traffic from host to the guest (in VM Settings > Network > Advanced > Port forwarding)
+- alternatively, the 'Network' option 'Attached to' could be changed from 'NAT' to 'Bridge Adapter' to use the IP address of the VM for access
 
 #### Ports overview:
-- **Port 4241:42**: SSH
-- **Port 80:80**: This is the default port for HTTP (Hypertext Transfer Protocol). When you visit a website using http://, your web browser communicates with the web server over this port unless specified otherwise.
-
-- **Port 443:443**: This is the default port for HTTPS (HTTP Secure), which is HTTP over SSL/TLS. When you visit a website using https://, your web browser communicates with the web server over this port. HTTPS encrypts the data for secure transmission, preventing data from being read in transit.
+- **Port 4241:4241**: SSH
+- **Port 80:80**: This is the default port for HTTP (Hypertext Transfer Protocol). When visiting a website using http://, web browser communicates with the web server over this port unless specified otherwise.
+- **Port 443:443**: This is the default port for HTTPS (HTTP Secure), which is HTTP over SSL/TLS. When visiting a website using https://, web browser communicates with the web server over this port. HTTPS encrypts the data for secure transmission, preventing data from being read in transit.
 
 
 #### SSH
 - `/etc/ssh/sshd_config`
-  - Port: 42
+  - Port: 4241
   - PermitRootLogin: prohibit-password
   - PubkeyAuthentication: yes
   - PasswordAuthentication: yes
@@ -41,7 +38,7 @@
   - `service sshd restart`
   - `service ssh status`
 <br>
-- SSH, or Secure Shell, is a protocol used to securely connect to a remote server/system. It provides a secure channel over an unsecured network in a client-server architecture, allowing you to run commands on a remote machine, transfer files, and more.
+- SSH, or Secure Shell, is a protocol used to securely connect to a remote server/system. It provides a secure channel over an unsecured network in a client-server architecture, allowing to run commands on a remote machine, transfer files, and more.
   - `ssh`: This is the client side of the protocol. When you use the `ssh` command in a terminal, you're using the SSH client to connect to an SSH server on a remote machine.
   - `sshd`: This stands for SSH daemon, and it's the server side of the protocol. The SSH daemon runs on the server and listens for connections from SSH clients. 
 
@@ -67,11 +64,11 @@
 <br>
 - **NGINX config**:
   
-  - `listen 80; listen 443 ssl;`: Listen for connections on ports 80 (HTTP) and 443 (HTTPS). In practice, the server will be accessible via both HTTP and HTTPS.
+  - `listen 80; listen 443 ssl;`: Listen for connections on ports 80 (HTTP) and 443 (HTTPS). The server would be accessible via both HTTP and HTTPS with this setting, but 80 shoudl be commented out to allow only secure connection.
   
   - `server_name aulicna.42.fr www.aulicna.42.fr;`: Sets the server name to `aulicna.42.fr` and `www.aulicna.42.fr`. Nginx will respond to requests that are made to these domain names.
   
-  - `root /var/www/public/html;`: Sets the root directory for requests to `/var/www/public/html`. This is the directory where Nginx will look for files to serve when it receives a request.
+  - `root /var/www/html/wordpress;`: Sets the root directory for requests to `/var/www/html/wordpress`. This is the directory where Nginx will look for files to serve when it receives a request.
   
   - `ssl_certificate /etc/nginx/ssl/aulicna.42.fr.crt;`: Sets the path to the SSL certificate. This certificate is used to establish a secure connection with the client.
   
@@ -85,8 +82,6 @@
   
   - `location / { ... }`: Defines how to respond to requests for the root URL (`/`). The `try_files $uri /index.html;` line tells Nginx to try to serve the requested URI, and if that fails, to serve `/index.html`. This is useful for single-page applications where you want to serve the same HTML file for all routes.
   
-  - `if ($scheme = 'http') {...}`: Redirects HTTP traffic to HTTPS. This is a common practice to ensure that all traffic is encrypted.
-
 ### Docker containers
 - NGINX: Proxy web server, port: 443
 - PHP: Scripting language for the web
@@ -103,9 +98,12 @@
 
 **Dockerfile**
 ```
-FROM alpine:3.20											# specify the base image - alpine is small size and secure
+FROM alpine:3.19											# specify the base image - penultimate stable version
+
 RUN apk update && apk upgrade && apk add --no-cache nginx	# creates a new image layer resulting from the called command (similar to a VM snapshot)
+
 EXPOSE 443													# open port for the container to exchange web traffic
+
 CMD ["nginx", "-g", "daemon off;"]							# run the installed configuration
 ```
 
@@ -113,13 +111,13 @@ CMD ["nginx", "-g", "daemon off;"]							# run the installed configuration
 
 **Dockerfile**
 ```
-FROM alpine:3.20											# specify the base image - alpine is small size and secure
+FROM alpine:3.19											# specify the base image - penultimate stable version
 
 ARG DB_NAME \												# pass env variables saved in .env file
-	DB_USER \
-	DB_PASS
+	DB_USER 
 
 RUN apk update && apk add --no-cache mariadb mariadb-client # create a new image layer resulting from the called command (similar to a VM snapshot)
+
 RUN mkdir /var/run/mysqld; \								# create directory for MariaDB's runtime data
     chmod 777 /var/run/mysqld; \							# change permission so that the directory is writable
     { echo '[mysqld]'; \									
@@ -129,13 +127,22 @@ RUN mkdir /var/run/mysqld; \								# create directory for MariaDB's runtime dat
     } | tee  /etc/my.cnf.d/docker.cnf; \					# create new config file with the above settings
     sed -i "s|skip-networking|skip-networking=0|g" \		# modify the config file to enable networking by adding "=0" to skip-networking
       /etc/my.cnf.d/mariadb-server.cnf
+
 RUN mysql_install_db --user=mysql --datadir=/var/lib/mysql	# as user "mysql" initialize MariaDB database system tables in /var/lib/mysql using mysql_install_db
+
 EXPOSE 3306													# open the default port for MariaDB/MySQL
 
-COPY requirements/mariadb/conf/create_db.sh .				# copy a database initialization script from the host's tool directory to the curring one inside the image
-RUN sh create_db.sh && rm create_db.sh						# run the database initialization script and remove it afterwards
+COPY requirements/mariadb/conf/create_db.sh .				# copy a database initialization script from the host's tool directory to the current one inside the image
+
+RUN --mount=type=secret,id=db_root_password \				# mount (attach storage) the secrets to the build process = way of passing sensitive information to the container during the build process
+    --mount=type=secret,id=db_password \
+	export DB_ROOT=$(cat /run/secrets/db_root_password) && \# export the secrets as environment variables for the subsequent script to have access to them - it is safe because the secrets will disappear along with the shell session that the building is happening in once it's done
+	export DB_PASS=$(cat /run/secrets/db_password) && \
+	sh create_db.sh && rm create_db.sh						# run the database initialization script and remove it afterward
+
 USER mysql													# set running user for running subsequent commands and the container itself - security best practise not to run as root
-CMD ["/usr/bin/mysqld", "--skip-log-error"]					# specify the default command to run once the container starts (if the container is runing with args, those replace this array)
+
+CMD ["/usr/bin/mysqld", "--skip-log-error"]					# specify the default command to run once the container starts
 ```
 <br>
 
@@ -181,7 +188,7 @@ DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%'; 										# Remove privil
 DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1'); # Remove remote root access
 ALTER USER 'root'@'localhost' IDENTIFIED BY '${DB_ROOT}'; 									# Set the root password
 CREATE DATABASE ${DB_NAME} CHARACTER SET utf8 COLLATE utf8_general_ci; 						# Create the wordpress database with UTF-8 encoding
-CREATE USER '${DB_USER}'@'%' IDENTIFIED by '${DB_PASS}'; 									# Create a new user for wordpress
+CREATE USER '${DB_USER}'@'%' IDENTIFIED BY '${DB_PASS}'; 									# Create a new user for wordpress
 GRANT ALL PRIVILEGES ON wordpress.* TO '${DB_USER}'@'%'; 									# Grant all privileges on the wordpress database to the new user
 FLUSH PRIVILEGES; 																			# Reload the grant tables in memory
 EOF
@@ -214,43 +221,39 @@ The script performs several steps to ensure the MySQL (MariaDB) database is prop
   - Wordpress itself
 
 ```
-FROM alpine:3.20
-ARG PHP_VERSION=8 \											# specify php version as a command line argument (ARG instruction)
+FROM alpine:3.19
     DB_NAME \												# specify arguments saved in .env (ARG instruction)
     DB_USER \
-    DB_PASS
+	DB_HOST
+
 RUN apk update && apk upgrade && apk add --no-cache \		# the usual + list of components:
-    php${PHP_VERSION} \										# php which wordpress runs on
-    php${PHP_VERSION}-fpm \									# php-fpm manages interaction with nginx
-    php${PHP_VERSION}-mysqli \								# required php extension: manages interaction with mariadb (alternative: mysqlnd)
-	php${PHP_VERSION}-json \								# required php extension: used for communications with other servers and processing data in JSON format
-    php${PHP_VERSION}-curl \								# highly recommended php extension: performs remote request operations
-    php${PHP_VERSION}-dom \									# highly recommended php extension: used to validate Text Widget content and to automatically configure IIS7+
-    php${PHP_VERSION}-exif \								# highly recommended php extension: works with metadata stored in images
-    php${PHP_VERSION}-fileinfo \							# highly recommended php extension: used to detect mimetype of file uploads
-    php${PHP_VERSION}-mbstring \							# highly recommended php extension: used to properly handle UTF8 text (and required by php-exif, but apk should handle these dependencies automatically)
-    php${PHP_VERSION}-openssl \								# highly recommended php extension: SSL-based (secure socket layer) connections to other hosts
-    php${PHP_VERSION}-xml \									# highly recommended php extension: used for XML parsing, such as from a third-party site
-    php${PHP_VERSION}-zip \									# highly recommended php extension: used for decompressing Plugins, Themes, and WordPress update packages
-    php${PHP_VERSION}-redis \								# needed for bonus: interface with Redis
+    php \													# php which wordpress runs on
+    php-fpm \												# php-fpm manages interaction with nginx
+    php-mysqli \											# required php extension: manages interaction with mariadb (alternative: mysqlnd)
+	php-ctype \
+    php-redis \												# needed for bonus: interface with Redis
     wget \													# needed to download wordpress itself
     unzip \													# unzip the archive with downloaded wordpress
-	sed -i "s|listen = 127.0.0.1:9000|listen = 9000|g" \	# set www.conf, so that the fastCGI listens to all connections on port 9000
-    /etc/php8/php-fpm.d/www.conf \
-    sed -i "s|;listen.owner = nobody|listen.owner = nobody|g" \
-    /etc/php8/php-fpm.d/www.conf \
-    sed -i "s|;listen.group = nobody|listen.group = nobody|g" \
-    /etc/php8/php-fpm.d/www.conf \
+	sed -i "s|127.0.0.1|0.0.0.0|g" \						# set www.conf, so that the fastCGI listens to all connections on port 9000
+    /etc/php82/php-fpm.d/www.conf \
+    sed -i "s|nobody|root|g" \
+    /etc/php82/php-fpm.d/www.conf \
     && rm -f /var/cache/apk/*								# clear cache of installed modules
-WORKDIR /var/www											# assign working directory
-RUN wget https://wordpress.org/latest.zip && \				# download latest version of wordpress
-    unzip latest.zip && \
-    cp -rf wordpress/* . && \
-    rm -rf wordpress latest.zip								# delete source files after unzipping
-COPY ./requirements/wordpress/conf/wp-config-create.sh .	# copy and execute configuration file
-RUN sh wp-config-create.sh && rm wp-config-create.sh && \	# run wordpress initialization script and delete it afterwards
-    chmod -R 0777 wp-content/								# give all users rights to the wp-content folder - management of themes, plugins, and other files
-CMD ["/usr/sbin/php-fpm8", "-F"]							# launch installed php-fpm
+
+RUN wget https://wordpress.org/latest.tar.gz && \
+	tar xvf latest.tar.gz && \
+	mkdir -p /var/www/html/wordpress && \
+	cp -r /wordpress/* /var/www/html/wordpress/
+	
+COPY ./conf/wp-config-create.sh .							# copy configuration file
+
+RUN --mount=type=secret,id=db_password \					# mount (attach storage) the secrets to the build process = way of passing sensitive information to the container during the build process
+	export DB_PASS=$(cat /run/secrets/db_password) && \		# export the secrets as environment variables for the subsequent script to have access to them - it is safe because the secrets will disappear along with the shell session that the building is happening in once it's done
+	sh wp-config-create.sh && \								# run wordpress initialization script and delete it afterwards
+	rm wp-config-create.sh && \
+	chmod -R 0777 /var/www/html/wordpress/wp-content/ && \	# give all users rights to the wp-content folder - management of themes, plugins, and other files
+	rm -rf /wordpress /latest.tar.gz						
+CMD ["php-fpm82", "-F"]										# launch installed php-fpm
 ```
 
 **Dockerfile - further explanation**:
